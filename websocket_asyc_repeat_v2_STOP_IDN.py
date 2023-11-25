@@ -4,7 +4,7 @@ look files from folder: ./data_folder/ next to script.
 Seclect file based on client request.
 
 eg. request: 2,yyyy,0 meaninig int in filename, yyyy string in file name (not in use yet),
- int line nuber. File name 2data.csv, line o will streamed.
+ int first column number. File name 2data.csv, line o will streamed.
 
 Server will stream same line continously until server recive STOP or another request.
 
