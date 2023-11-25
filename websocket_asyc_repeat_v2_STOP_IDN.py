@@ -13,6 +13,7 @@ Server will stream same line continously until server recive STOP or another req
 import websockets
 import asyncio
 import csv
+import numpy as np
 
 class CsvWebSocketServer():
     def __init__(self, host, port):
@@ -27,22 +28,22 @@ class CsvWebSocketServer():
         """Read csv file.
         """
         filename = self.path + f"data{file_number}.csv"
-        # print(f"Avataan tiedosto: {filename}")
+        # print(f"Open file: {filename}")
 
         try:
             with open(filename, newline="") as csv_file:
                 reader = csv.reader(csv_file)
                 result = []
                 for i, row in enumerate(reader):
-                    # print(f"Rivi {i}: {row}")  # Tulostaa rivinumeron ja rivin
+                    # print(f"Row nr {i}: {row}")
                     if row and int(row[0]) == line_number:
                         result.append(row)
                 return result[0]
         except FileNotFoundError:
-            print("File not found (read csv method)")
+            print("File not found (read_csv method)")
             return None
         except ValueError:
-            print("Virhe muunneltaessa rivin ensimmäistä saraketta kokonaisluvuksi.")
+            print("ValueError (read_csv method)")
             return None
 
     # websoket server, request from client to this server
@@ -51,12 +52,14 @@ class CsvWebSocketServer():
         while True:
             if self.current_data:
                 await websocket.send(str(self.current_data))
-            await asyncio.sleep(1)  # Lähettää dataa joka sekunti
+            await asyncio.sleep(np.random.randint(1,11))  # random delay between send
 
     async def ws_handler(self, websocket, path):
         """ws handler """
         send_data_task = None
         async for message in websocket:
+            
+            # handle received message
             try:
                 if message == "STOP":
                     if send_data_task:
@@ -65,32 +68,40 @@ class CsvWebSocketServer():
                     await websocket.send("Data sending stopped")
                 elif message == "*IDN?":
                     await websocket.send(f"Server name CsvWebSocketServer, address: {self.host}, port: {self.port}")
+                
+                # csv line requests handled here
                 else:
                     file_number, file_name, line_number = message.split(",")
                     file_number = int(file_number)
-                    line_number = int(line_number)  
+                    line_number = int(line_number)
+                    file_name = str(file_name) # NOT uset yet
 
-                    # Säilytetään viimeisin pyyntö
+                    # store latest request (to recognice new requests)
                     self.current_request = (file_number, line_number)
-
+                    
+                    # validate request
                     if 0 <= file_number <= 5 and 0 <= line_number <= 360:
+                        
+                        #if requ ok read file
                         data = self.read_csv(file_number, line_number)
                         if data:
                             self.current_data = data
                             print("Data from file: ", data)
                         else:
-                            await websocket.send("File not found (ws handler)")
+                            await websocket.send("File not found (ws_handler)")
+                    
+                    # handle repeater (new requ or stop)
                     if not send_data_task or send_data_task.done():
                         send_data_task = asyncio.create_task(self.send_data_periodically(websocket))
                     else:
-                        await websocket.send("MITÄ NYT TAPAHTUI? else haara")
+                        await websocket.send("UNEXCPECTED happend? (ws_handler)")
             except ValueError:
-                await websocket.send("Invalid request from client (value error)")
-    # palvelimen käynnistys
+                await websocket.send("Invalid request from client (value error ws_handler)")
+    # start server
     async def start_server(self):
         async with websockets.serve(self.ws_handler, self.host,self.port):
             await asyncio.Future() 
-    # Luodaan ja käynnistetään palvelin
+    # create instance and call start server
 server = CsvWebSocketServer("localhost", 8765)
 asyncio.run(server.start_server())
 
